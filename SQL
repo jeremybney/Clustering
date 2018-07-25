@@ -1,0 +1,83 @@
+WITH userbase AS 
+    (SELECT DISTINCT userid
+    FROM trader_types
+    WHERE first_trade_date >= 20171201 
+  AND first_trade_date < 20180101
+    GROUP BY  1) , 
+    
+    first_week_trades AS 
+    (SELECT f.userid,
+         first_trade_date,
+         sum(tkn_usd_amount) AS total_trade_vol_first_week,
+         SUM(CASE
+        WHEN (type = 'maker') THEN
+        tkn_usd_amount
+        ELSE 0 END) AS maker_vol, SUM(CASE
+        WHEN (type = 'taker') THEN
+        tkn_usd_amount
+        ELSE 0 END) AS taker_vol, SUM(fee_usd_amount) AS revenuez
+    FROM first_7_days AS f
+    JOIN userbase AS u
+        ON f.userid = u.userid
+    GROUP BY  1,2) , 
+    
+    loans AS 
+    (SELECT provider,
+         SUM(CASE
+        WHEN (action = 'open') THEN
+        startingamount
+        ELSE 0 END) AS loanz, (((year * 10000) + (month * 100)) + day) AS date
+    FROM loan_actions AS lna
+    RIGHT JOIN first_week_trades AS f
+        ON lna.provider = f.userid
+    WHERE (((year * 10000) + (month * 100)) + day) < f.first_trade_date + 7
+    GROUP BY  1,3) , 
+    
+    first_week_deposits AS 
+    (SELECT w.userid, w.region AS region, w.ipcountry AS ipcountry,
+     SUM(CASE WHEN (activity = 'deposit') THEN tkn_usd_amount ELSE 0 END) AS Deposits, 
+     SUM(CASE WHEN (activity = 'withdrawal') THEN tkn_usd_amount ELSE 0 END) AS Withdrawals
+    FROM dep_wd_day_level AS w
+    RIGHT JOIN first_week_trades f
+        ON w.userid = f.userid
+    WHERE (((year(day) * 10000) + (month(day) * 100)) + day(day)) < f.first_trade_date + 7
+    GROUP BY  1,2,3) , 
+    
+    percent_core AS 
+    (SELECT trade_day.userid,
+         SUM(trade_count) AS trade_count,
+         COUNT(DISTINCT currency_pair) AS pairs_traded,
+         COUNT(DISTINCT
+        CASE
+        WHEN currency IN ('BTC','ETH','USDT') THEN
+        currency_pair END) AS core_pairs_traded
+    FROM trade_day_level AS trade_day
+    JOIN first_week_trades AS f
+        ON trade_day.userid = f.userid
+    WHERE date < f.first_trade_date + 7
+    GROUP BY  1)
+    
+    
+SELECT dep.userid, dep.region, dep.ipcountry,
+         SUM(total_trade_vol_first_week*4) AS total_vol,
+         SUM(trade_count*4) AS trade_count,
+         SUM(deposits*4) AS deposits,
+         SUM(withdrawals*4) AS withdrawals,
+         SUM(revenuez*4) AS revenue,
+         SUM(core_pairs_traded*4) AS core_pairs_traded,
+         SUM(pairs_traded*4) AS pairs_traded,
+         SUM(maker_vol*4) AS maker_vol,
+         SUM(taker_vol*4) AS taker_vol,
+         SUM(loanz*4) AS loans
+
+FROM first_week_deposits AS dep
+RIGHT JOIN first_week_trades AS tra
+    ON dep.userid = tra.userid
+JOIN percent_core AS pc_core
+    ON pc_core.userid = dep.userid
+LEFT JOIN loans AS lo
+    ON lo.date = tra.first_trade_date
+        AND lo.provider = dep.userid
+
+GROUP BY  1,2,3
+ORDER BY  total_vol DESC
