@@ -1,0 +1,91 @@
+
+# Import libraries
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
+from sklearn import preprocessing
+from scipy.spatial.distance import cdist
+from sklearn.metrics import pairwise_distances_argmin_min
+
+# Read in the data.
+df2 = pd.read_csv("/Users/jney/Desktop/NewClusters/May2018_v2.csv")
+df2 = df2.fillna(0)
+median_deposits = df2['deposits'].median(skipna=True)
+df2['deposits']=df2.deposits.mask(df2.deposits == 0,median_deposits)
+df2['percent_noncore'] = (100-(df2['core_pairs_traded']/df2['pairs_traded'])*100)
+df2['vol/deposits'] = (df2['total_vol']/df2['deposits'])
+df2['withdrawals/deposits'] = (df2['withdrawals']/df2['deposits'])
+
+# Print the names of the columns
+print(df2.columns)
+
+features = ['total_vol', 'trade_count', 'withdrawals/deposits', 'maker_vol', 'taker_vol', 'percent_noncore', 'loans', 'vol/deposits']
+user = ['userid']
+revenue = ['revenue']
+
+#scale the dataframe
+scaler = preprocessing.StandardScaler().fit(df2[features])
+df_scaled2 = pd.DataFrame(scaler.transform(df2[features]), columns=features)
+
+
+#create a kmeans model with parameters we want
+startpts=np.array([[-0.0134772, 0.00736486, 0.0516617, -0.0157784, 0.00138459, -0.854777, -0.0237765, 0.121708], 
+                  [-0.0331786, -0.0784655, -0.0861202, -0.0228304, -0.0561337, 0.969159, -0.0205463, -0.147684], 
+                  [57.7431, 12.8363, -0.297792,	60.4068, 20.8228, 0.716662, -0.0256939, -0.172551], 
+                  [-0.0510034, -0.135221, -0.297792, -0.034844, -0.0872266, 0.604398, 41.9645,	 -0.201299], 
+                  [5.57358, 22.2542, -0.274873, 2.29955, 15.1399, -0.777812, -0.0256939, 1.15871], 
+                  [-0.0544146,	-0.138657	, 50.9637, -0.0368567, -0.0942426, 0.211474, -0.0256939, 12.1242]], np.float64)
+kmeans_model = KMeans(n_clusters=6, init=startpts, n_init=1, max_iter=300)
+
+#fit the model to the predefined centers and then predict where the traders will go
+kmeans_model.fit(startpts)
+kmeans_model.predict(df_scaled2[features])
+
+#predict where the values will go based on centroids
+df_scaled2['label'] = kmeans_model.predict(df_scaled2[features])
+
+#append the clustering to the dataframe
+df_scaled2['userid'] = df2[user]
+df_scaled2['revenue'] = df2[revenue]
+
+#print the number of values in each cluster and save it
+print df_scaled2['label'].value_counts()
+cluster_sizes = df_scaled2['label'].value_counts()
+
+#export to csv
+df_scaled2.to_csv("/Users/jney/Desktop/NewClusters/clusters/May2018_clusters_v2.csv", sep='\t')
+
+####find the userids of 3 closest points to cluster 0 centers
+#change [:, 0] to [:, 1] to find userids for cluster 1
+d = kmeans_model.transform(df_scaled2[features])[:, 0]
+ind = np.argsort(d)[::][:3]
+df2.userid.iloc[ind]
+
+#centroids should be the same as that of June18
+centers_may18 = pd.DataFrame(centroids.cluster_centers_, columns = features)
+
+#find the aggregate revenue for each cluster
+revenue_june17 = (df2.groupby("label")["revenue"].sum()) / (df_scaled2['label'].value_counts())
+
+#evaluate cluster density
+kmeans_model.fit(df_scaled2[features]).inertia_
+
+
+# k means determine k
+distortions = []
+K = range(1,10)
+for k in K:
+    kmeanModel = KMeans(n_clusters=k).fit(df_scaled2)
+    kmeanModel.fit(df_scaled2)
+    distortions.append(sum(np.min(cdist(df_scaled2, kmeanModel.cluster_centers_, 'euclidean'), axis=1)) / df_scaled2.shape[0])
+# Plot the elbow
+plt.plot(K, distortions, 'bx-')
+plt.xlabel('k')
+plt.ylabel('Distortion')
+plt.title('The Elbow Method showing the optimal k')
+plt.show()
+
+#print the trader info for cluster1 - so after the '==' input the cluster number aka 0 that you want to see the first 5 rows for
+print df_scaled[ df_scaled['label'] == 1 ].head()
