@@ -7,9 +7,11 @@ Make sure to predefine the dimensions that you want to use and drop those that y
 # Read in the data
 Make sure there are no NaN or null values otherwise the clustering won't work. To ensure there are no null values, either use .fillna(0) or
 
-for name in features_:
-	df[name] = \
-		df[name].fillna(df[name].median())
+#for name in features_:
+
+#	df[name] = \
+
+#		df[name].fillna(df[name].median())
 
 Moreover, Rough Kmeans can only use DICT so will need to .to_dict(orient = 'list') function to get this to work. 
 
