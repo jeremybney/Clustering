@@ -13,12 +13,12 @@ Make sure there are no NaN or null values otherwise the clustering won't work. T
 
 Moreover, Rough Kmeans can only use DICT so will need to .to_dict(orient = 'list') function to get this to work. 
 
-## PCA
-Use this script to flattens clusters and visualize in 2D
+## PCA & TSNE
+Use PCA script to flatten clusters and visualize in 2D. Use TSNE in R for better visualizations, better fidelity of information but usually longer run time. 
 
-## set the centroid
+## Centroid
 Can eiter explicitly type out the centroid you want, or just use the values run previously using regular kmeans. 
 
-## elbow method
+## Number of Clusters
 
 Use the plotting function at the end of the code for kmeans to determine the optimal number of clusters. 
